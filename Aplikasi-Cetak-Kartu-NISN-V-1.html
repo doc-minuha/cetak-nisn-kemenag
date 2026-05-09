@@ -1,0 +1,1650 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1024">
+    <title>Aplikasi Cetak Kartu NISN V.1 | Created by: Solo Operator&trade;</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2310b981' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='4' width='18' height='16' rx='2' ry='2'></rect><circle cx='9' cy='10' r='2'></circle><line x1='15' y1='8' x2='19' y2='8'></line><line x1='15' y1='12' x2='19' y2='12'></line><line x1='9' y1='16' x2='19' y2='16'></line></svg>">
+    <link rel="stylesheet" href="index.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.js"></script>
+    <!-- Library untuk membuat QR code -->
+    <script src="https://cdn.jsdelivr.net/npm/qrious@4.0.2/dist/qrious.min.js"></script>
+    <!-- Library untuk membaca file Excel -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
+	<style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+            /* Memberikan padding ke body untuk memberikan ruang di bawah fixed header */
+            padding-top: 70px;
+        }
+		header {
+			height: 70px;
+		}
+        .card-container {
+            perspective: 1000px;
+        }
+        .card {
+            /* Dibuat responsif */
+            max-width: 400px;
+            width: 100%;
+            aspect-ratio: 400 / 240;
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 0.6s;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08);
+			border-radius: 12px;
+			background: white;
+        }
+        .card.flipped {
+            transform: rotateY(180deg);
+        }
+        .card-face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            -webkit-backface-visibility: hidden;
+            backface-visibility: hidden;
+            border-radius: 12px;
+            color: #000; /* Mengubah warna font menjadi hitam */
+            border: 2px solid #e5e7eb; /* Mengubah border agar terlihat di latar belakang putih */
+            /* Memastikan konten dan border mengikuti border-radius */
+            overflow: hidden;
+        }
+        
+        .card-front {
+            transform: rotateY(180deg);
+        }
+        .card-back {
+            transform: rotateY(0deg);
+        }
+		
+		.card-bg-img {
+			position: absolute;
+			top: 0;
+			left: 0;
+			width: 100%;
+			height: 100%;
+			object-fit: fill;
+			z-index: 0;
+			border-radius: 10px; /* Matches the card-face border-radius */
+		}
+
+		#qr-logo {
+			position: absolute;
+			top: 50%;
+			left: 50%;
+			transform: translate(-50%, -50%);
+			width: 80%;
+			height: 75%;
+			background-color: transparent;
+			padding: 5px;
+			border-radius: 50%;
+			object-fit: contain; /* Memastikan logo pas di dalam kontainer */
+		}
+
+        .profile-picture {
+            /* Dibuat responsif dengan ukuran minimum */
+            width: 65px;
+            height: 78px;
+            aspect-ratio: 3 / 4;
+            border-radius: 4px;
+            object-fit: cover;
+			margin-top:48px;
+        }
+        .section-divider {
+            width: 80%;
+            height: 2px;
+            background-color: rgba(0, 0, 0, 0.2); /* Mengubah warna pembatas agar kontras dengan teks hitam */
+            margin: 4% 0; /* Margin responsif */
+            border-radius: 9999px;
+        }
+        .qr-code-container {
+            /* Dibuat responsif dengan ukuran min/max */
+            width: 22%;
+            min-width: 50px;
+            max-width: 50px;
+            aspect-ratio: 1 / 1;
+            background-color: #ffffff;
+            border-radius: 4px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+			margin-bottom: 8px;
+			margin-right: 11px;
+			padding: 2px;
+        }
+        /* Style untuk tabel */
+        .table-container {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        /* Style baru untuk tombol yang seragam */
+        .uniform-btn {
+            @apply px-4 py-2 rounded-lg text-sm font-semibold text-white;
+			padding: 5px;
+			border-radius: 5px;
+        }
+
+        /* Gaya untuk Tooltip */
+        .qr-code-tooltip {
+            visibility: hidden;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            position: absolute;
+            bottom: calc(100% + 10px);
+            left: -35%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 8px;
+            border-radius: 6px;
+            font-size: 10px;
+            white-space: pre-wrap;
+            width: 150px;
+            z-index: 10;
+            text-align: left;
+        }
+
+        .qr-code-container:hover .qr-code-tooltip {
+            visibility: visible;
+            opacity: 1;
+        }
+        
+        /* Modal Notifikasi Kustom */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 100;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(5px);
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+            text-align: center;
+            transform: scale(0.9);
+            opacity: 0;
+            animation: fadeInScale 0.3s forwards;
+            max-width: 400px;
+            width: 90%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        @keyframes fadeInScale {
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+        
+        .modal-icon-success {
+            color: #16a34a; /* Green 600 */
+        }
+        .modal-icon-error {
+            color: #dc2626; /* Red 600 */
+        }
+        .modal-icon-warning {
+            color: #f59e0b; /* Yellow 600 */
+        }
+        .modal-icon-info {
+            color: #2563eb; /* Blue 600 */
+        }
+
+        .modal-icon {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 16px;
+        }
+        
+        /* Menyembunyikan kolom sekolah pada tabel */
+        #studentDataTableContainer table th:nth-child(5),
+        #studentDataTableContainer table td:nth-child(5) {
+            display: none;
+        }
+        
+        /* Gaya untuk tombol scroll */
+        .scroll-btn {
+            position: fixed;
+            right: 20px;
+            bottom: 20px;
+            z-index: 90;
+            width: 48px;
+            height: 48px;
+            background-color: rgba(22, 163, 74, 0.8); /* green-600 dengan transparansi */
+            color: white;
+            border: none;
+            border-radius: 9999px;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease-in-out;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .scroll-btn:hover {
+            background-color: rgba(22, 163, 74, 1);
+            transform: scale(1.1);
+        }
+
+        #scrollToBottomBtn {
+            bottom: 80px;
+        }
+        #scrollToBottomBtn.visible, #scrollToTopBtn.visible {
+            display: flex;
+        }
+        
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center">
+
+    <!-- Header Aplikasi -->
+    <header class="bg-emerald-700 text-white p-4 shadow-md fixed w-full top-0 z-50">
+        <div class="max-w-6xl mx-auto flex justify-between items-center" style="margin-top:-13px;">
+            <!-- Sisi Kiri Header -->
+            <div class="flex items-center gap-0">
+                <img style="background:transparent;" src="https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEhDh-ZaJN2Kuusbb2fbNhgX3Ch6T90v2qdRDKJeJXRb7WyxWsg85MVfy8Lc3UMCJDead36AxTrBNkDOYmvQ50Kh9ZKLvHgFIPr2YXGu8SOA8G1ThNrU53kLNiB3S-YI10XjG7o6qeRJyQXw-l-faVph3rUPPuA5KPArvz-RFb-P8x939-Qac3wMrCDzBD2M/s16000/KEMENAG%20TRANSPARAN%20copy.png" alt="Logo Aplikasi" class="h-16 w-16">
+                <h1 class="text-md">KEMENTERIAN AGAMA <br> REPUBLIK INDONESIA</h1>
+            </div>
+            
+            <!-- Sisi Kanan Header (Tampil di layar medium ke atas) -->
+            <div class="hidden md:block">
+                <p class="text-md">Aplikasi Cetak Kartu NISN V.1 |</p>
+				<p style="text-align:right;font-size:12px;">| Created by: Solo Operator&trade;</p>
+            </div>
+        </div>
+    </header>
+
+    <!-- Konten Utama -->
+    <!-- Lebar div utama diubah dari max-w-4xl menjadi max-w-6xl -->
+    <div id="formCardSection" class="bg-white p-8 rounded-1xl shadow-md max-w-6xl w-full flex flex-col md:flex-row gap-8">
+        <!-- Input Form -->
+        <div class="flex-1 flex flex-col gap-6">
+            <h1 class="text-xl font-bold text-center"><i class="bi bi-card-checklist"></i> Formulir Kartu NISN</h1>
+            <div class="space-y-4">
+                <!-- Kolom Nama Sekolah yang baru dipindahkan -->
+                <div>
+                    <label for="sekolah" class="block text-sm font-medium text-gray-700">Nama Sekolah</label>
+                    <input type="text" id="sekolah" class="mt-1 block w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg shadow-sm focus:ring-emerald-500 focus:border-emerald-500" placeholder="Masukkan nama sekolah">
+                </div>
+                <div>
+                    <label for="nama" class="block text-sm font-medium text-gray-700">Nama Lengkap</label>
+                    <input type="text" id="nama" class="mt-1 block w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg shadow-sm focus:ring-emerald-500 focus:border-emerald-500" placeholder="Masukkan nama lengkap">
+                </div>
+                <div>
+                    <label for="nisn" class="block text-sm font-medium text-gray-700">NISN</label>
+                    <input type="text" id="nisn" class="mt-1 block w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg shadow-sm focus:ring-emerald-500 focus:border-emerald-500" placeholder="Masukkan NISN">
+                </div>
+                <div>
+                    <label for="tempatLahir" class="block text-sm font-medium text-gray-700">Tempat Lahir</label>
+                    <input type="text" id="tempatLahir" class="mt-1 block w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg shadow-sm focus:ring-emerald-500 focus:border-emerald-500" placeholder="Masukkan tempat lahir">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Tanggal Lahir</label>
+                    <div class="grid grid-cols-3 gap-2 mt-1">
+                        <select id="daySelect" class="w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg shadow-sm focus:ring-emerald-500 focus:border-emerald-500">
+                            <option value="">Tanggal</option>
+                        </select>
+                        <select id="monthSelect" class="w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg shadow-sm focus:ring-emerald-500 focus:border-emerald-500">
+                            <option value="">Bulan</option>
+                            <option value="01">Januari</option>
+                            <option value="02">Februari</option>
+                            <option value="03">Maret</option>
+                            <option value="04">April</option>
+                            <option value="05">Mei</option>
+                            <option value="06">Juni</option>
+                            <option value="07">Juli</option>
+                            <option value="08">Agustus</option>
+                            <option value="09">September</option>
+                            <option value="10">Oktober</option>
+                            <option value="11">November</option>
+                            <option value="12">Desember</option>
+                        </select>
+                        <select id="yearSelect" class="w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg shadow-sm focus:ring-emerald-500 focus:border-emerald-500">
+                            <option value="">Tahun</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label for="jenisKelamin" class="block text-sm font-medium text-gray-700">Jenis Kelamin</label>
+                    <select id="jenisKelamin" class="mt-1 block w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg shadow-sm focus:ring-emerald-500 focus:border-emerald-500">
+                        <option value="">Pilih</option>
+                        <option value="Laki-laki">Laki-laki</option>
+                        <option value="Perempuan">Perempuan</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="fotoInput" class="block text-sm font-medium text-gray-700">Unggah Foto (Opsional)</label>
+                    <input type="file" id="fotoInput" accept="image/*" class="mt-1 block w-full px-4 py-2 bg-white border border-gray-300 rounded-lg shadow-sm focus:ring-emerald-500 focus:border-emerald-500 text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100">
+                </div>
+                <div class="flex flex-col md:flex-row gap-4">
+                    <button id="saveButton" onclick="saveStudent()" class="w-full px-4 py-2 bg-emerald-600 text-white font-semibold rounded-lg shadow-md hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition ease-in-out duration-150">
+                        <i class="bi bi-floppy"></i> Simpan Data Siswa
+                    </button>
+                    <button id="updateButton" onclick="updateStudent()" class="w-full px-4 py-2 bg-emerald-600 text-white font-semibold rounded-lg shadow-md hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition ease-in-out duration-150 disabled:bg-gray-400">
+                        <i class="bi bi-pencil-square" style="color:white"></i> Perbarui Data Siswa
+                    </button>
+                </div>
+                <div class="mt-4 flex flex-col md:flex-row gap-4">
+                    <button id="toggleDataTableBtn" onclick="toggleDataTable()" class="w-full px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition ease-in-out duration-150">
+                        <i class="bi bi-mortarboard"></i> Tampilkan Data Siswa
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card and Control Buttons - Dibuat responsif -->
+        <div class="flex-1 flex flex-col items-center gap-4 mt-8 md:mt-0 rounded-2xl">
+		<h1 class="text-xl font-bold text-center"><i class="bi bi-projector"></i> Pratinjau Kartu NISN</h1>
+            <div id="card-container" class="card-container rounded-2xl w-full">
+                <div id="nisn-card" class="card mx-auto">
+                    <!-- Sisi Depan Kartu (Hidden by default) -->
+                    <div id="card-front" class="card-face card-front shadow-md">
+                        <img id="card-front-bg" class="card-bg-img" src="https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEjY6vvtdkzXLgWRtkc7I03QcHFQmo4EryI8e7_dSY8i2am4IdFMfCrBD_lxq5iRRfB-IK1yFTMwIMiOUQ51OJDKf1CY48o8gYp9XY2iRqyBzhGQrihvUgjdkYRbU89jZ4ypwHcAE4s8udGsyqXhGgAj14lx3ImIsdppLDehkk2p9U15lWTzXf8tli002LCw/s16000/BG-NISN-EMIS-2.png" alt="Card Front Background">
+                        <div class="relative z-10 w-full h-full flex flex-col items-center justify-center p-2 sm:p-4 md:p-6" style="visibility: hidden;">
+                            <p class="text-[9px] sm:text-xs font-light">KARTU INDUK SISWA NASIONAL</p>
+                            <h2 id="nama-output" class="text-sm sm:text-lg font-bold text-center mt-1 sm:mt-2">NAMA SISWA</h2>
+                            <div class="section-divider"></div>
+                            <p id="sekolah-output-front" class="text-[10px] sm:text-sm font-semibold text-center mb-0.5 sm:mb-1">NAMA SEKOLAH</p>
+                            <p id="nisn-output" class="text-base sm:text-xl font-extrabold tracking-wider">NISN</p>
+                            <p class="text-[8px] sm:text-[10px] font-light mt-0.5 sm:mt-1">Nomor Induk Siswa Nasional</p>
+                        </div>
+                    </div>
+
+                    <!-- Sisi Belakang Kartu (Visible by default) -->
+                    <div id="card-back" class="card-face card-back shadow-md">
+                        <img id="card-back-bg" class="card-bg-img" src="https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEj9M30diFHNeTYyaCKyoOCuY_Qc_0ivazBtq9OmHEI9i2LJUm53YmWmmNvrYoukbsEjle2MZaowwuiRZ66r36SeORRqBLO0UuDfVxizL1h9IhemPTwsDLxuAIcajD6sGJcYsSwXKYy8X-5EifAZs23Po6ocHcL8lC_Mijg91Se_h57A9AGCO34DmbXzu2b0/s16000/BG-NISN-EMIS-1.png" alt="Card Back Background">
+                        <div class="relative z-10 w-full h-full flex flex-row items-center justify-start gap-2 md:gap-4 p-2 sm:p-4 md:p-6 text-[9px] sm:text-xs">
+                            <div class="flex-shrink-0">
+                                <img id="profile-pic" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2MCIgaGVpZ2h0PSI4MCIgdmlld0JveD0iMCAwIDYwIDgwIiBzdHlsZT0iYmFja2dyb3VuZC1jb2xvcjojZTBlMGUwOyI+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGRvbWluYW50LWJhc2VsaW5lPSJtaWRkbGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxMiIgZmlsbD0iIzU1NSIgZm9udC13ZWlnaHQ9ImJvbGQiPkZPVE88L3RleHQ+PC9zdmc+" alt="Foto Profil" class="profile-picture">
+                            </div>
+							
+                            <div class="flex flex-col items-start text-center flex-grow space-y-1 pr-1">
+                                <p id="sekolah-heading-back" class="text-[10px] sm:text-xs font-bold mb-1" style="width:200px;margin-top:10px;"><span id="sekolah-output"></span></p>
+								<table style="text-align:left;font-size:10px;line-height:1.2em;margin-top:5px;">
+								<tr><td>NISN</td><td>:</td><td><span id="nisn-output-back"></span></td></tr>
+								<tr><td style="vertical-align: top;">Nama Siswa</td><td style="vertical-align: top;">:</td><td><span id="nama-output-back"></span></td></tr>
+								<tr><td>Tempat Lahir</td><td>:</td><td><span id="tempat-lahir-output"></span></td></tr>
+								<tr><td>Tanggal Lahir</td><td>:</td><td><span id="tanggal-lahir-output"></span></td></tr>
+								<tr><td width="85px">Jenis Kelamin</td><td>:</td><td><span id="jenis-kelamin-output"></span></td></tr>
+								</table>
+                                 
+                            </div>
+                            
+                            <div class="absolute bottom-0 right-0 p-1 sm:p-2">
+                                <div class="qr-code-container group">
+                                    <img id="qrcode-img" src="" alt="Kode QR">
+                                    <img id="qr-logo" src="https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEhDh-ZaJN2Kuusbb2fbNhgX3Ch6T90v2qdRDKJeJXRb7WyxWsg85MVfy8Lc3UMCJDead36AxTrBNkDOYmvQ50Kh9ZKLvHgFIPr2YXGu8SOA8G1ThNrU53kLNiB3S-YI10XjG7o6qeRJyQXw-l-faVph3rUPPuA5KPArvz-RFb-P8x939-Qac3wMrCDzBD2M/s16000/KEMENAG%20TRANSPARAN%20copy.png" alt="QR Logo">
+                                    <div id="qrcode-tooltip" class="qr-code-tooltip"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex flex-col md:flex-row gap-4 mt-4">
+                <button onclick="flipCard()" class="px-6 py-3 bg-yellow-200 text-gray-800 font-semibold rounded-lg shadow-md hover:bg-yellow-300 rounded-lg transition ease-in-out duration-150">
+                    <i class="bi bi-phone-flip"></i> Balik Kartu
+                </button>
+                <button onclick="printCard()" class="px-6 py-3 bg-emerald-600 text-white font-semibold rounded-lg shadow-md hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition ease-in-out duration-150">
+                    <i class="bi bi-printer"></i> Cetak PDF
+                </button>
+            </div>
+             <!-- Catatan penting untuk mencetak -->
+            <blockquote class="bg-gray-100 shadow-md p-4 rounded-lg border-l-4 border-emerald-500 text-gray-700 mt-4 max-w-sm">
+				<p class="font-bold text-sm mb-1"><i class="bi bi-journal-bookmark-fill"></i> Fitur Aplikasi:</p>
+                <ul class="pl-5 pb-1 list-disc text-sm">
+                    <li>Aplikasi free/gratis.</li>
+					<li>Aplikasi secure/aman.</li>
+					<li>Cetak pdf dengan ukuran kerta A4.</li>
+                    <li>Penyimpanan data di localstorage.</li>
+					<li>Download template file excel untuk import data.</li>
+					<li>Import data siswa menggunakan file excel.</li>
+                </ul>
+            </blockquote>
+			<!-- Catatan penting untuk mencetak -->
+            <blockquote class="bg-gray-100 shadow-md p-4 rounded-lg border-l-4 border-emerald-500 text-gray-700 mt-4 max-w-sm">
+				<p class="font-bold text-sm mb-1"><i class="bi bi-journal-bookmark-fill"></i> Catatan Penting:</p>
+				<p class="text-sm mb-1">Mohon dukungan dengan ikuti terus akun media sosial kami <b><i>(link media sosial di footer bawah)</i></b> untuk mendapatkan informasi dan aplikasi terbaru.</p>
+            </blockquote>
+        </div>
+    </div>
+
+    <!-- Lebar div utama diubah dari max-w-4xl menjadi max-w-6xl -->
+    <div id="studentDataTableContainer" class="hidden bg-white p-8 rounded-1xl shadow-md max-w-6xl w-full flex flex-col gap-6 mt-8" style="margin-top:0px;">
+        <div class="flex flex-wrap justify-between items-center mb-4 gap-4">
+            <h1 class="text-xl font-bold text-center"><i class="bi bi-mortarboard"></i> Data Siswa Tersimpan</h1>
+            <div class="flex flex-wrap gap-2 md:gap-4" style="font-size:14px;color:white;">
+                <!-- Tombol baru untuk hapus massal -->
+                <button onclick="showConfirmationModal('hapus_massal')" class="uniform-btn bg-red-600 hover:bg-red-800 shadow-md transition-colors duration-200" title="Hapus Semua Data">
+                    <i class="bi bi-trash3"></i> Hapus Semua
+                </button>
+                <button onclick="downloadExcelTemplate()" class="uniform-btn bg-yellow-500 hover:bg-yellow-700 shadow-md transition-colors duration-200" title="Unduh Template">
+                    <i class="bi bi-download"></i> Unduh Template
+                </button>
+                <label class="uniform-btn bg-emerald-700 hover:bg-emerald-900 shadow-md transition-colors duration-200 cursor-pointer" title="Import Data">
+                    <i class="bi bi-upload"></i> Unggah File Excel
+                    <input type="file" id="uploadExcelInput" onchange="uploadExcel()" class="hidden" accept=".xlsx, .xls">
+                </label>
+                <button onclick="toggleDataTable()" class="uniform-btn bg-blue-600 hover:bg-blue-800 shadow-md transition-colors duration-200" title="Kembali ke Formulir">
+                    <i class="bi bi-reply-all"></i> Kembali ke Formulir
+                </button>
+            </div>
+        </div>
+        <div class="mb-4">
+            <input type="text" id="searchInput" oninput="searchStudents()" placeholder="Cari nama atau NISN..." class="w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg shadow-sm focus:ring-emerald-500 focus:border-emerald-500">
+        </div>
+        <div class="table-container">
+            <table class="min-w-full divide-y divide-gray-200 rounded-lg overflow-hidden">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <!-- Kolom baru untuk tombol ceklis -->
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll()">
+                        </th>
+                        <!-- Kolom baru untuk nomor urut -->
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">No.</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nama Siswa</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">NISN</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sekolah</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tempat, Tgl Lahir</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Jenis Kelamin</th>
+                        <!-- Kolom baru untuk aksi -->
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><i class="bi bi-gear"></i> Aksi</th>
+                    </tr>
+                </thead>
+                <tbody id="dataTableBody" class="bg-white divide-y divide-gray-200">
+                    <!-- Data siswa akan dimasukkan di sini oleh JavaScript -->
+                </tbody>
+            </table>
+        </div>
+        <!-- Kontrol Paginasi -->
+        <div class="mt-4 flex justify-between items-center">
+            <p id="dataCount" class="text-sm font-medium text-gray-700">Jumlah Data: 0</p>
+            <div class="flex gap-2" style="font-size:14px;">
+                <button id="prevPageBtn" onclick="previousPage()" class="uniform-btn bg-gray-200 text-gray-800 hover:bg-gray-300 shadow-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <i class="bi bi-rewind-circle"></i> Sebelumnya
+                </button>
+                <button id="nextPageBtn" onclick="nextPage()" class="uniform-btn bg-gray-200 text-gray-800 hover:bg-gray-300 shadow-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
+                    Berikutnya <i class="bi bi-fast-forward-circle"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal Notifikasi -->
+    <div id="notificationModal" class="modal">
+        <div class="modal-content">
+            <!-- SVG untuk ikon Sukses -->
+            <svg id="successIcon" class="modal-icon modal-icon-success" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-8.85" />
+                <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
+            <!-- SVG untuk ikon Error -->
+            <svg id="errorIcon" class="modal-icon modal-icon-error" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="15" y1="9" x2="9" y2="15" />
+                <line x1="9" y1="9" x2="15" y2="15" />
+            </svg>
+            <!-- SVG untuk ikon Peringatan -->
+            <svg id="warningIcon" class="modal-icon modal-icon-warning" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+             <!-- SVG untuk ikon Info -->
+            <svg id="infoIcon" class="modal-icon modal-icon-info" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="16" x2="12" y2="12"></line>
+                <line x1="12" y1="8" x2="12.01" y2="8"></line>
+            </svg>
+            <h3 id="modalTitle" class="text-xl font-bold mb-2"></h3>
+            <p id="modalMessage" class="text-gray-700 mb-6"></p>
+            <div id="modal-actions" class="flex gap-4">
+                <button onclick="hideModal()" class="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors duration-200">
+                    Tutup
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal Konfirmasi -->
+    <div id="confirmationModal" class="modal">
+        <div class="modal-content">
+            <!-- Ikon Peringatan untuk konfirmasi -->
+            <svg class="modal-icon modal-icon-warning" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+            <h3 id="confirmationTitle" class="text-xl font-bold mb-2"></h3>
+            <p id="confirmationMessage" class="text-gray-700 mb-6"></p>
+            <div class="flex gap-4">
+                <button onclick="hideConfirmationModal()" class="px-6 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors duration-200">
+                    Batal
+                </button>
+                <button id="confirmActionButton" class="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors duration-200">
+                    Ya, Hapus
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tombol Scroll -->
+    <button id="scrollToTopBtn" class="scroll-btn" onclick="scrollToTop()">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 10l7-7m0 0l7 7m-7-7v18" />
+        </svg>
+    </button>
+    <button id="scrollToBottomBtn" class="scroll-btn" onclick="scrollToBottom()">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+        </svg>
+    </button>
+
+    <!-- Footer Aplikasi -->
+    <footer class="w-full bg-emerald-700 py-6 px-4 flex flex-col items-center justify-center text-white mt-8">
+        <img style="width:10%;height:10%;background:white;" src="https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEjbXF6hYgZcVqC9ZNHRd1cv_wPnvqPXxx9B-ecvcvTMt2z7bmoH4c1iZMbKyRvXCJX4MPhs36_yvnLrmgU8jQgtsx7keXv0L8Aln3oypad_RRnLb5xXsGvMYjBiy2PTuEqWV7XrCFOedCuoOyDsrFzxOeeBTKrqGhBPCs5lI12FiPxbah1pUMI24UEu2Rar/s16000/Solo%20Operator.png" alt="Logo Aplikasi" class="h-12 w-12 mb-2 rounded-full">
+        <h2 class="font-bold text-center" style="font-size:22px;">Solo Operator&trade;</h2>
+        <h2 class="text-center">Please follow me for next update on:</h2>
+        <!-- Social Media Icons -->
+        <div class="flex justify-center items-center gap-6 mt-4">
+            <!-- Website Icon -->
+            <a href="https://solo-operator.blogspot.com/" target="_blank" rel="noopener noreferrer" class="relative group text-white transition-transform duration-300 hover:scale-110" aria-label="Website">
+                <i class="bi bi-globe2" style="font-size:18px;"></i>
+                <span class="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-gray-800 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">Website</span>
+            </a>
+			|
+            <!-- Facebook Icon -->
+            <a href="https://www.facebook.com/profile.php?id=61579227370745" target="_blank" rel="noopener noreferrer" class="relative group text-white transition-transform duration-300 hover:scale-110" aria-label="Facebook">
+                <i class="bi bi-facebook" style="font-size:18px;"></i>
+                <span class="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-gray-800 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">Facebook</span>
+            </a>
+			|
+			<!-- Twitter Icon -->
+            <a href="https://x.com/sulaiman99t" target="_blank" rel="noopener noreferrer" class="relative group text-white transition-transform duration-300 hover:scale-110" aria-label="Twitter">
+                <i class="bi bi-twitter-x" style="font-size:18px;"></i>
+                <span class="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-gray-800 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">Twitter</span>
+            </a>
+			|
+            <!-- YouTube Icon -->
+            <a href="https://youtube.com/@solo-operator-id" target="_blank" rel="noopener noreferrer" class="relative group text-white transition-transform duration-300 hover:scale-110" aria-label="YouTube">
+                <i class="bi bi-youtube" style="font-size:18px;"></i>
+                <span class="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-gray-800 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">YouTube</span>
+            </a>
+			|
+            <!-- Instagram Icon -->
+            <a href="https://www.instagram.com/sulaiman992tz" target="_blank" rel="noopener noreferrer" class="relative group text-white transition-transform duration-300 hover:scale-110" aria-label="Instagram">
+                <i class="bi bi-instagram" style="font-size:18px;"></i>
+                <span class="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-gray-800 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">Instagram</span>
+            </a>
+			|
+            <!-- Whatsapp Icon -->
+            <a href="https://whatsapp.com/channel/0029VbBrbtY1HspwC41uLe0h" target="_blank" rel="noopener noreferrer" class="relative group text-white transition-transform duration-300 hover:scale-110" aria-label="Saluran Whatsapp">
+                <i class="bi bi-whatsapp" style="font-size:18px;"></i>
+                <span class="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-gray-800 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">Saluran Whatsapp</span>
+            </a>
+        </div>
+        
+        <p class="text-sm text-center mt-2">Copyright © <script>document.write(new Date().getFullYear());</script> Aplikasi Cetak Kartu NISN. Hak Cipta Dilindungi.</p>
+    </footer>
+
+    <script>
+        window.jsPDF = window.jspdf.jsPDF;
+
+        // --- Variabel Global & Konstanta ---
+
+        // Konstanta untuk placeholder gambar SVG, memastikan gambar selalu tersedia dan dapat dicetak
+        const FOTO_PLACEHOLDER = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2MCIgaGVpZ2h0PSI4MCIgdmlld0JveD0iMCAwIDYwIDgwIiBzdHlsZT0iYmFja2dyb3VuZC1jb2xvcjojZTBlMGUwOyI+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGRvbWluYW50LWJhc2VsaW5lPSJtaWRkbGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxMiIgZmlsbD0iIzU1NSIgZm9udC13ZWlnaHQ9ImJvbGQiPkZPVE88L3RleHQ+PC9zdmc+';
+        const NO_FOTO_PLACEHOLDER = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2MCIgaGVpZ2h0PSI4MCIgdmlld0JveD0iMCAwIDYwIDgwIiBzdHlsZT0iYmFja2dyb3VuZC1jb2xvcjojZTBlMGUwOyI+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGRvbWluYW50LWJhc2VsaW5lPSJtaWRkbGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSI4IiBmaWxsPSIjNTU1IiBmb250LXdlaWdodD0iYm9sZCI+PHRzcGFuIHg9IjUwJSIgZHk9Ii0wLjVlbSI+VElEQUsgQURBPC90c3Bhbj48dHNwYW4geD0iNTAlIiBkeT0iMS4yZW0iPkZPVE88L3RzcGFuPjwvdGV4dD48L3N2Zz4=';
+
+
+        const nisnCard = document.getElementById('nisn-card');
+        const cardFront = document.getElementById('card-front');
+        const cardBack = document.getElementById('card-back');
+        const fotoInput = document.getElementById('fotoInput');
+        const profilePic = document.getElementById('profile-pic');
+        const namaOutput = document.getElementById('nama-output');
+        const nisnOutput = document.getElementById('nisn-output');
+        const sekolahOutputFront = document.getElementById('sekolah-output-front');
+        const namaOutputBack = document.getElementById('nama-output-back');
+        const nisnOutputBack = document.getElementById('nisn-output-back');
+        const sekolahOutput = document.getElementById('sekolah-output');
+        const sekolahHeadingBack = document.getElementById('sekolah-heading-back');
+        const tempatLahirOutput = document.getElementById('tempat-lahir-output');
+        const tanggalLahirOutput = document.getElementById('tanggal-lahir-output');
+        const jenisKelaminOutput = document.getElementById('jenis-kelamin-output');
+        const qrCodeImg = document.getElementById('qrcode-img');
+        const qrCodeTooltip = document.getElementById('qrcode-tooltip');
+
+        // Elemen untuk dropdown tanggal
+        const daySelect = document.getElementById('daySelect');
+        const monthSelect = document.getElementById('monthSelect');
+        const yearSelect = document.getElementById('yearSelect');
+        const formInputs = document.querySelectorAll('input, select');
+
+        // Elemen dan data untuk tabel
+        const formCardSection = document.getElementById('formCardSection');
+        const studentDataTableContainer = document.getElementById('studentDataTableContainer');
+        const dataTableBody = document.getElementById('dataTableBody');
+        const dataCount = document.getElementById('dataCount');
+
+        // Tombol Simpan dan Perbarui
+        const saveButton = document.getElementById('saveButton');
+        const updateButton = document.getElementById('updateButton');
+
+        // Checkbox untuk hapus massal
+        const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+        
+        // Modal elements
+        const notificationModal = document.getElementById('notificationModal');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalMessage = document.getElementById('modalMessage');
+        const successIcon = document.getElementById('successIcon');
+        const errorIcon = document.getElementById('errorIcon');
+        const warningIcon = document.getElementById('warningIcon');
+        const infoIcon = document.getElementById('infoIcon');
+        const confirmationModal = document.getElementById('confirmationModal');
+        const confirmationTitle = document.getElementById('confirmationTitle');
+        const confirmationMessage = document.getElementById('confirmationMessage');
+        const confirmActionButton = document.getElementById('confirmActionButton');
+
+        // Scroll buttons
+        const scrollToTopBtn = document.getElementById('scrollToTopBtn');
+        const scrollToBottomBtn = document.getElementById('scrollToBottomBtn');
+
+        // Menggunakan localStorage untuk menyimpan data siswa secara permanen
+        let studentData = JSON.parse(localStorage.getItem('studentData')) || [];
+        // Menggunakan Set untuk melacak data yang dipilih agar lebih efisien
+        let selectedStudentIds = new Set();
+        
+        // Variabel untuk Paginasi
+        let currentPage = 1;
+        const rowsPerPage = 5;
+
+        // Cache untuk gambar yang sudah di-konversi ke data URL untuk mempercepat cetak
+        const imageCache = new Map();
+
+        // Array untuk mengubah angka bulan menjadi nama bulan
+        const monthNames = [
+            'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+            'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+        ];
+        
+        // Fungsi baru untuk menyesuaikan ukuran font secara dinamis agar pas dalam kontainer
+        function adjustFontSize(element) {
+            // Reset ukuran font ke default dari CSS untuk menangani kasus di mana teks menjadi lebih pendek
+            element.style.fontSize = '';
+
+            // Dapatkan ukuran font default untuk digunakan sebagai titik awal pengurangan
+            let fontSize = parseFloat(window.getComputedStyle(element).fontSize);
+            const minFontSize = 8; // Ukuran font minimum dalam piksel
+
+            // Kurangi ukuran font hingga lebar konten tidak lebih besar dari lebar kotak elemen
+            // Ini mengharuskan elemen memiliki `white-space: nowrap` dari CSS
+            while (element.scrollWidth > element.clientWidth && fontSize > minFontSize) {
+                fontSize -= 0.5;
+                element.style.fontSize = fontSize + 'px';
+            }
+        }
+
+        // Fungsi untuk menampilkan modal
+        function showModal(title, message, type, extraButtonConfig = null) {
+            modalTitle.textContent = title;
+            modalMessage.textContent = message;
+
+            // Sembunyikan semua ikon
+            successIcon.style.display = 'none';
+            errorIcon.style.display = 'none';
+            warningIcon.style.display = 'none';
+            infoIcon.style.display = 'none';
+
+            // Tampilkan ikon yang sesuai
+            if (type === 'success') successIcon.style.display = 'block';
+            else if (type === 'error') errorIcon.style.display = 'block';
+            else if (type === 'warning') warningIcon.style.display = 'block';
+            else if (type === 'info') infoIcon.style.display = 'block';
+
+            const modalActions = document.getElementById('modal-actions');
+            // Bersihkan semua tombol sebelumnya
+            modalActions.innerHTML = '';
+
+            // Tambahkan tombol ekstra jika ada
+            if (extraButtonConfig && extraButtonConfig.text && typeof extraButtonConfig.onClick === 'function') {
+                const extraButton = document.createElement('button');
+                extraButton.textContent = extraButtonConfig.text;
+                // Tombol aksi utama (biru)
+                extraButton.className = 'px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200';
+                extraButton.onclick = extraButtonConfig.onClick;
+                modalActions.appendChild(extraButton);
+                
+                const closeButton = document.createElement('button');
+                closeButton.textContent = 'Tutup';
+                // Tombol tutup sekunder (abu-abu)
+                closeButton.className = 'px-6 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors duration-200';
+                closeButton.onclick = hideModal;
+                modalActions.appendChild(closeButton);
+            } else {
+                // Jika tidak ada tombol ekstra, gunakan tombol tutup default (hijau)
+                const defaultCloseButton = document.createElement('button');
+                defaultCloseButton.textContent = 'Tutup';
+                defaultCloseButton.className = 'px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors duration-200';
+                defaultCloseButton.onclick = hideModal;
+                modalActions.appendChild(defaultCloseButton);
+            }
+
+            notificationModal.style.display = 'flex';
+        }
+
+        // Fungsi untuk menyembunyikan modal
+        function hideModal() {
+            notificationModal.style.display = 'none';
+        }
+        
+        // Fungsi untuk menampilkan modal konfirmasi
+        function showConfirmationModal(actionType, nisn = null) {
+            let title = '';
+            let message = '';
+            
+            if (actionType === 'hapus_satu') {
+                title = 'Hapus Data Siswa';
+                message = `Apakah Anda yakin ingin menghapus data siswa dengan NISN: ${nisn}?`;
+                confirmActionButton.textContent = 'Ya, Hapus';
+                confirmActionButton.onclick = () => {
+                    deleteStudent(nisn);
+                    hideConfirmationModal();
+                };
+            } else if (actionType === 'hapus_massal') {
+                const count = selectedStudentIds.size;
+                if (count === 0) {
+                    showModal('Peringatan', 'Tidak ada data yang dipilih untuk dihapus.', 'warning');
+                    return;
+                }
+                title = 'Hapus Data Terpilih';
+                message = `Apakah Anda yakin ingin menghapus ${count} data siswa yang terpilih?`;
+                confirmActionButton.textContent = 'Ya, Hapus';
+                confirmActionButton.onclick = () => {
+                    deleteSelectedStudents();
+                    hideConfirmationModal();
+                };
+            }
+            
+            confirmationTitle.textContent = title;
+            confirmationMessage.textContent = message;
+            confirmationModal.style.display = 'flex';
+        }
+
+        // Fungsi untuk menyembunyikan modal konfirmasi
+        function hideConfirmationModal() {
+            confirmationModal.style.display = 'none';
+        }
+        
+        // Fungsi untuk mengisi dropdown tahun
+        function populateYears() {
+            const currentYear = new Date().getFullYear();
+            for (let i = currentYear; i >= 1900; i--) {
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = i;
+                yearSelect.appendChild(option);
+            }
+        }
+
+        // Fungsi untuk mengisi dropdown hari
+        function populateDays() {
+            // Simpan nilai tanggal yang dipilih
+            const selectedDay = daySelect.value;
+            
+            const year = yearSelect.value || new Date().getFullYear();
+            const month = monthSelect.value || new Date().getMonth() + 1;
+            const daysInMonth = new Date(year, month, 0).getDate();
+
+            // Kosongkan dropdown hari sebelum mengisi ulang
+            daySelect.innerHTML = '<option value="">Tanggal</option>';
+            for (let i = 1; i <= daysInMonth; i++) {
+                const option = document.createElement('option');
+                // Tambahkan '0' di depan untuk tanggal 1-9
+                const formattedDay = String(i).padStart(2, '0');
+                option.value = formattedDay;
+                option.textContent = formattedDay;
+                daySelect.appendChild(option);
+            }
+            
+            // Atur kembali nilai tanggal yang disimpan
+            if (selectedDay) {
+                daySelect.value = selectedDay;
+            }
+        }
+
+        // Listeners untuk perubahan tahun dan bulan
+        yearSelect.addEventListener('change', () => {
+            populateDays();
+            updateCardPreview();
+        });
+        monthSelect.addEventListener('change', () => {
+            populateDays();
+            updateCardPreview();
+        });
+
+        // Panggil fungsi ini saat halaman dimuat
+        document.addEventListener('DOMContentLoaded', () => {
+            populateYears();
+            populateDays();
+            renderDataTable();
+            updateCardPreview(); // Panggil fungsi ini saat halaman pertama kali dimuat
+        });
+
+        // Fungsi untuk membalik kartu
+        function flipCard() {
+            nisnCard.classList.toggle('flipped');
+        }
+
+        // Fungsi untuk mengunggah foto
+        function uploadFoto(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    profilePic.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        // Listener untuk input file
+        fotoInput.addEventListener('change', uploadFoto);
+
+        // Fungsi untuk mengupdate preview kartu
+        async function updateCardPreview() {
+            const nama = document.getElementById('nama').value || 'NAMA SISWA';
+            const nisn = document.getElementById('nisn').value || 'NISN';
+            const sekolah = document.getElementById('sekolah').value || 'NAMA SEKOLAH';
+            const tempatLahir = document.getElementById('tempatLahir').value || 'TEMPAT LAHIR';
+            
+            // Mengambil nilai dari dropdown
+            const day = daySelect.value;
+            const month = monthSelect.value;
+            const year = yearSelect.value;
+
+            // Mengubah format tanggal menjadi teks
+            const formattedDate = (day && month && year) ? 
+                `${day} ${monthNames[parseInt(month, 10) - 1]} ${year}` : 'TANGGAL LAHIR';
+
+            const jenisKelamin = document.getElementById('jenisKelamin').value || 'JENIS KELAMIN';
+
+            // Update sisi depan
+            namaOutput.textContent = nama.toUpperCase();
+            sekolahOutputFront.textContent = sekolah.toUpperCase();
+            nisnOutput.textContent = nisn;
+
+            // Update sisi belakang
+            namaOutputBack.textContent = nama;
+            nisnOutputBack.textContent = nisn;
+            sekolahOutput.textContent = sekolah;
+            sekolahHeadingBack.textContent = sekolah;
+            tempatLahirOutput.textContent = tempatLahir;
+            tanggalLahirOutput.textContent = formattedDate;
+            jenisKelaminOutput.textContent = jenisKelamin;
+
+            // Buat string untuk QR Code sesuai format yang diminta
+            const qrValue = `NISN: ${nisn}, Nama : ${nama}, Jenis Kelamin : ${jenisKelamin}, Tempat Lahir : ${tempatLahir}`;
+            
+            // Perbarui konten tooltip agar konsisten dengan data QR code (dengan format baris baru)
+            qrCodeTooltip.textContent = `NISN: ${nisn}\nNama: ${nama}\nJenis Kelamin: ${jenisKelamin}\nTempat Lahir: ${tempatLahir}`;
+
+            // Secara dinamis menyesuaikan ukuran font tooltip berdasarkan panjang nama
+            const baseFontSize = 10; // Ukuran dasar dalam px
+            const minFontSize = 7;   // Ukuran minimum dalam px
+            const nameLengthThreshold = 20; // Batas panjang nama sebelum font mulai mengecil
+
+            let newSize = baseFontSize;
+            if (nama.length > nameLengthThreshold) {
+                // Kurangi ukuran font secara bertahap, tetapi tidak lebih kecil dari ukuran minimum
+                newSize = Math.max(minFontSize, baseFontSize - (nama.length - nameLengthThreshold) * 0.3);
+            }
+            qrCodeTooltip.style.fontSize = `${newSize}px`;
+
+            // Generate QR code without a logo, as the logo will be overlaid with CSS.
+            const qrious = new QRious({
+                value: qrValue,
+                size: 1024,
+                background: '#ffffff',
+                foreground: '#127369',
+                level: 'H' // High error correction allows the logo to cover part of the QR code without issues.
+            });
+
+            qrCodeImg.src = qrious.toDataURL('image/png');
+            
+            // Sesuaikan ukuran font agar pas setelah semua konten diatur
+            const elementsToAdjust = [
+                namaOutput, sekolahOutputFront, nisnOutput,
+                sekolahHeadingBack, namaOutputBack, nisnOutputBack, sekolahOutput,
+                tempatLahirOutput, tanggalLahirOutput, jenisKelaminOutput
+            ];
+            elementsToAdjust.forEach(el => adjustFontSize(el));
+        }
+        
+        // Listeners untuk semua input formulir
+        formInputs.forEach(input => {
+            input.addEventListener('input', updateCardPreview);
+        });
+        
+        // Menambahkan event listener ke dropdown tanggal
+        daySelect.addEventListener('change', updateCardPreview);
+
+
+        // Fungsi untuk menyimpan data siswa ke localStorage
+        function saveStudent() {
+            const nama = document.getElementById('nama').value;
+            const nisn = document.getElementById('nisn').value;
+            const sekolah = document.getElementById('sekolah').value;
+            const tempatLahir = document.getElementById('tempatLahir').value;
+            const tanggalLahir = `${daySelect.value}/${monthSelect.value}/${yearSelect.value}`;
+            const jenisKelamin = document.getElementById('jenisKelamin').value;
+            const fotoData = profilePic.src;
+            const id = Date.now(); // ID unik
+
+            if (!nama || !nisn || !sekolah || !tempatLahir || !tanggalLahir || !jenisKelamin) {
+                showModal('Peringatan', 'Harap isi semua kolom wajib.', 'warning');
+                return;
+            }
+
+            const existingStudent = studentData.find(student => student.nisn === nisn);
+            if (existingStudent) {
+                showModal('NISN Ganda', 'NISN ini sudah ada. Gunakan fungsi "Perbarui Data Siswa" untuk mengubahnya.', 'error');
+                return;
+            }
+
+            const newStudent = { id, nama, nisn, sekolah, tempatLahir, tanggalLahir, jenisKelamin, fotoData };
+            studentData.push(newStudent);
+            localStorage.setItem('studentData', JSON.stringify(studentData));
+            
+            showModal('Sukses', 'Data siswa berhasil disimpan!', 'success');
+            clearForm();
+            renderDataTable();
+        }
+
+        // Fungsi untuk memperbarui data siswa
+        function updateStudent() {
+            const nisnToUpdate = document.getElementById('nisn').value;
+            const index = studentData.findIndex(student => student.nisn === nisnToUpdate);
+
+            if (index === -1) {
+                showModal('Gagal', 'NISN tidak ditemukan. Data gagal diperbarui.', 'error');
+                return;
+            }
+            
+            const updatedStudent = {
+                id: studentData[index].id,
+                nama: document.getElementById('nama').value,
+                nisn: document.getElementById('nisn').value,
+                sekolah: document.getElementById('sekolah').value,
+                tempatLahir: document.getElementById('tempatLahir').value,
+                tanggalLahir: `${daySelect.value}/${monthSelect.value}/${yearSelect.value}`,
+                jenisKelamin: document.getElementById('jenisKelamin').value,
+                fotoData: profilePic.src,
+            };
+
+            studentData[index] = updatedStudent;
+            localStorage.setItem('studentData', JSON.stringify(studentData));
+            showModal('Sukses', 'Data siswa berhasil diperbarui!', 'success');
+            clearForm();
+            renderDataTable();
+        }
+
+        // Fungsi untuk menghapus data siswa
+        function deleteStudent(nisn) {
+            studentData = studentData.filter(student => student.nisn !== nisn);
+            localStorage.setItem('studentData', JSON.stringify(studentData));
+            showModal('Sukses', 'Data siswa berhasil dihapus.', 'success');
+            renderDataTable();
+        }
+
+        // Fungsi untuk menghapus data siswa yang dipilih
+        function deleteSelectedStudents() {
+            if (selectedStudentIds.size === 0) {
+                showModal('Peringatan', 'Tidak ada data yang dipilih untuk dihapus.', 'warning');
+                return;
+            }
+            
+            // Filter data siswa, hanya menyisakan yang ID-nya tidak ada di Set
+            studentData = studentData.filter(student => !selectedStudentIds.has(student.id));
+            localStorage.setItem('studentData', JSON.stringify(studentData));
+            
+            // Hapus semua ID dari Set setelah data dihapus
+            selectedStudentIds.clear();
+            selectAllCheckbox.checked = false; // Reset checkbox utama
+            
+            showModal('Sukses', `Berhasil menghapus ${selectedStudentIds.size} data siswa.`, 'success');
+            renderDataTable(); // Muat ulang tabel
+        }
+        
+        // Fungsi untuk menampilkan data siswa di formulir
+        function showStudent(nisn) {
+            const student = studentData.find(s => s.nisn === nisn);
+            if (!student) return;
+
+            document.getElementById('nama').value = student.nama;
+            document.getElementById('nisn').value = student.nisn;
+            document.getElementById('sekolah').value = student.sekolah;
+            document.getElementById('tempatLahir').value = student.tempatLahir;
+
+            const [day, month, year] = student.tanggalLahir.split('/');
+            daySelect.value = day;
+            monthSelect.value = month;
+            yearSelect.value = year;
+
+            document.getElementById('jenisKelamin').value = student.jenisKelamin;
+            
+            // Daftar URL placeholder yang diketahui (untuk kompatibilitas dengan data lama)
+            const placeholderUrls = [
+                'https://placehold.co', // Placeholder lama
+                'data:image/svg+xml'    // Placeholder SVG baru
+            ];
+            
+            // Jika fotoData ada dan BUKAN placeholder, gunakan foto tersebut.
+            // Jika tidak, tampilkan placeholder "TIDAK ADA FOTO".
+            if (student.fotoData && !placeholderUrls.some(p => student.fotoData.startsWith(p))) {
+                profilePic.src = student.fotoData;
+            } else {
+                profilePic.src = NO_FOTO_PLACEHOLDER;
+            }
+
+
+            updateCardPreview();
+            
+            // Pergi ke halaman formulir
+            formCardSection.classList.remove('hidden');
+            studentDataTableContainer.classList.add('hidden');
+            
+            // Atur tombol Simpan dan Perbarui
+            saveButton.disabled = true;
+            updateButton.disabled = false;
+        }
+
+        // Fungsi untuk mengedit data siswa
+        function editStudent(nisn) {
+            showStudent(nisn);
+            saveButton.disabled = true;
+            updateButton.disabled = false;
+        }
+
+        // Fungsi untuk mengosongkan formulir
+        function clearForm() {
+            formInputs.forEach(input => {
+                if (input.type === 'text' || input.tagName === 'SELECT') {
+                    input.value = '';
+                }
+            });
+            profilePic.src = FOTO_PLACEHOLDER;
+            updateCardPreview();
+            saveButton.disabled = false;
+            updateButton.disabled = true;
+        }
+        
+        // Fungsi untuk merender data di tabel dengan paginasi
+        function renderDataTable(dataToRender = studentData, page = 1) {
+            // Bersihkan isi tabel sebelumnya
+            dataTableBody.innerHTML = '';
+            
+            const startIndex = (page - 1) * rowsPerPage;
+            const endIndex = startIndex + rowsPerPage;
+            const paginatedData = dataToRender.slice(startIndex, endIndex);
+
+            // Perbarui status checkbox "Pilih Semua"
+            // Periksa apakah semua data yang difilter saat ini telah dipilih
+            const allFilteredData = studentData.filter(student => {
+                const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+                return student.nama.toLowerCase().includes(searchTerm) || student.nisn.toLowerCase().includes(searchTerm);
+            });
+            const allSelected = allFilteredData.length > 0 && allFilteredData.every(student => selectedStudentIds.has(student.id));
+            selectAllCheckbox.checked = allSelected;
+
+            paginatedData.forEach((student, index) => {
+                // Mengubah format tanggal untuk tampilan tabel
+                const [day, month, year] = student.tanggalLahir.split('/');
+                const formattedDate = `${day} ${monthNames[parseInt(month, 10) - 1]} ${year}`;
+                
+                const isSelected = selectedStudentIds.has(student.id);
+
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-gray-100 transition duration-150';
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        <!-- Checkbox dinonaktifkan untuk mencegah pemilihan individual -->
+                        <input type="checkbox" data-id="${student.id}" disabled ${isSelected ? 'checked' : ''}>
+                    </td>
+                    <!-- Kolom untuk nomor urut -->
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${startIndex + index + 1}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${student.nama}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${student.nisn}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${student.sekolah}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${student.tempatLahir}, ${formattedDate}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${student.jenisKelamin}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <div class="flex gap-2">
+                            <button onclick="showStudent('${student.nisn}')" class="uniform-btn bg-blue-600 hover:bg-blue-800 transition-colors duration-200" title="Lihat Data"><i class="bi bi-eye" style="color:white"></i></button>
+                            <button onclick="editStudent('${student.nisn}')" class="uniform-btn bg-emerald-700 hover:bg-emerald-900 transition-colors duration-200" title="Edit Data"><i class="bi bi-pencil-square" style="color:white"></i></button>
+                            <button onclick="showConfirmationModal('hapus_satu', '${student.nisn}')" class="uniform-btn bg-red-600 hover:bg-red-800 transition-colors duration-200" title="Hapus Data"><i class="bi bi-trash3" style="color:white"></i></button>
+						</div>
+                    </td>
+                `;
+                dataTableBody.appendChild(row);
+            });
+            
+            // Perbarui jumlah data yang ditampilkan
+            const totalData = dataToRender.length;
+            const startRange = totalData > 0 ? startIndex + 1 : 0;
+            const endRange = Math.min(endIndex, totalData);
+            dataCount.textContent = `Menampilkan ${startRange} - ${endRange} dari ${totalData} data`;
+
+            // Atur status tombol paginasi
+            document.getElementById('prevPageBtn').disabled = page === 1;
+            document.getElementById('nextPageBtn').disabled = endIndex >= totalData;
+        }
+
+        // Fungsi untuk mengaktifkan/menonaktifkan seleksi siswa (dihapus/dinonaktifkan)
+        function toggleStudentSelection(event) {
+            // Fungsi ini tidak lagi digunakan, pemilihan massal hanya melalui tombol "Pilih Semua"
+        }
+
+        // Fungsi untuk memilih/menghapus semua seleksi
+        function toggleSelectAll() {
+            const isChecked = selectAllCheckbox.checked;
+            
+            // Dapatkan data yang sudah difilter
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const filteredData = studentData.filter(student => {
+                const nama = student.nama.toLowerCase();
+                const nisn = student.nisn.toLowerCase();
+                return nama.includes(searchTerm) || nisn.includes(searchTerm);
+            });
+
+            if (isChecked) {
+                // Tambahkan semua ID dari data yang difilter ke Set
+                filteredData.forEach(student => selectedStudentIds.add(student.id));
+            } else {
+                // Hapus semua ID dari data yang difilter dari Set
+                filteredData.forEach(student => selectedStudentIds.delete(student.id));
+            }
+            
+            renderDataTable(filteredData, currentPage); // Render ulang tabel untuk menampilkan perubahan
+        }
+        
+        // Fungsi untuk mencari data siswa
+        function searchStudents() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const filteredData = studentData.filter(student => {
+                const nama = student.nama.toLowerCase();
+                const nisn = student.nisn.toLowerCase();
+                return nama.includes(searchTerm) || nisn.includes(searchTerm);
+            });
+            currentPage = 1; // Reset halaman ke 1 saat pencarian baru
+            renderDataTable(filteredData, currentPage);
+        }
+
+        // Fungsi untuk navigasi paginasi
+        function previousPage() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const filteredData = studentData.filter(student => {
+                const nama = student.nama.toLowerCase();
+                const nisn = student.nisn.toLowerCase();
+                return nama.includes(searchTerm) || nisn.includes(searchTerm);
+            });
+            const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+            if (currentPage > 1) {
+                currentPage--;
+                renderDataTable(filteredData, currentPage);
+            }
+        }
+
+        function nextPage() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const filteredData = studentData.filter(student => {
+                const nama = student.nama.toLowerCase();
+                const nisn = student.nisn.toLowerCase();
+                return nama.includes(searchTerm) || nisn.includes(searchTerm);
+            });
+            const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+            if (currentPage < totalPages) {
+                currentPage++;
+                renderDataTable(filteredData, currentPage);
+            }
+        }
+        
+        // Fungsi untuk mengonversi URL gambar menjadi data URL, dengan strategi multi-proxy yang tangguh
+        const imageToDataUrl = async (url) => {
+            // Jika URL sudah berupa data URL, langsung kembalikan.
+            if (url.startsWith('data:')) {
+                return url;
+            }
+
+            // Fungsi bantuan untuk mengonversi blob menjadi data URL
+            const convertBlobToDataUrl = (blob) => {
+                return new Promise((resolve, reject) => {
+                    // Verifikasi bahwa blob adalah gambar sebelum konversi
+                    if (blob.type && !blob.type.startsWith('image/')) {
+                        reject(new Error(`Konten yang diterima bukan gambar. Tipe MIME: ${blob.type}`));
+                        return;
+                    }
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result);
+                    reader.onerror = (error) => reject(error);
+                    reader.readAsDataURL(blob);
+                });
+            };
+
+            // Fungsi bantuan untuk mencoba mengambil gambar dari URL tertentu dengan timeout
+            const tryFetch = async (fetchUrl) => {
+                console.log(`Mencoba mengambil gambar via: ${fetchUrl}`);
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 15000); // Timeout 15 detik
+
+                try {
+                    const response = await fetch(fetchUrl, { signal: controller.signal });
+                    clearTimeout(timeoutId);
+
+                    if (!response.ok) {
+                        throw new Error(`Gagal dengan status: ${response.status} ${response.statusText}`);
+                    }
+                    
+                    const blob = await response.blob();
+                    if (blob.size === 0) {
+                        throw new Error("Proxy mengembalikan blob kosong.");
+                    }
+                    return await convertBlobToDataUrl(blob);
+                } catch (error) {
+                    clearTimeout(timeoutId);
+                    console.warn(`Gagal mengambil dari ${fetchUrl}:`, error);
+                    return null; // Mengembalikan null untuk menandakan kegagalan
+                }
+            };
+
+            // Daftar proxy dengan fungsi untuk membangun URL yang benar untuk setiap layanan
+            const proxies = [
+                // 1. images.weserv.nl (Sangat andal untuk gambar, URL tanpa protokol)
+                (targetUrl) => `https://images.weserv.nl/?url=${targetUrl.replace(/^https?:\/\//, '')}`,
+                // 2. allorigins (Fallback, URL di-encode)
+                (targetUrl) => `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`,
+                // 3. corsproxy.io (Fallback, URL mentah)
+                (targetUrl) => `https://corsproxy.io/?${targetUrl}`
+            ];
+
+            // Coba setiap proxy secara berurutan
+            for (const buildProxyUrl of proxies) {
+                const proxyUrl = buildProxyUrl(url);
+                const dataUrl = await tryFetch(proxyUrl);
+                if (dataUrl) {
+                    console.log(`Berhasil mengambil gambar dari: ${proxyUrl}`);
+                    return dataUrl; // Jika berhasil, langsung kembalikan hasilnya
+                }
+            }
+
+            // Jika semua proxy gagal, lemparkan error
+            console.error(`Gagal memuat gambar dari ${url} setelah mencoba semua proxy.`);
+            throw new Error('Tidak dapat memuat gambar dari URL yang diberikan. Pastikan link gambar valid dan server mengizinkan akses.');
+        };
+
+        // Fungsi pembungkus dengan caching untuk imageToDataUrl
+        const getCachedImageAsDataUrl = async (url) => {
+            if (imageCache.has(url)) {
+                console.log(`Mengambil gambar dari cache untuk: ${url}`);
+                return imageCache.get(url);
+            }
+            
+            console.log(`Gambar tidak ada di cache, mengambil dari jaringan: ${url}`);
+            const dataUrl = await imageToDataUrl(url); // Panggil fungsi asli yang lambat
+            imageCache.set(url, dataUrl); // Simpan hasilnya di cache
+            return dataUrl;
+        };
+
+
+        // Fungsi untuk mencetak kartu ke PDF
+        async function printCard() {
+            showModal('Info', 'Sedang mempersiapkan PDF, mohon tunggu...', 'info');
+            
+            const frontBg = document.getElementById('card-front-bg');
+            const backBg = document.getElementById('card-back-bg');
+            const qrLogo = document.getElementById('qr-logo');
+            
+            const originalFrontSrc = frontBg.src;
+            const originalBackSrc = backBg.src;
+            const originalLogoSrc = qrLogo.src;
+
+            try {
+                // Gunakan fungsi caching untuk konversi semua gambar
+                const [frontDataUrl, backDataUrl, logoDataUrl] = await Promise.all([
+                    getCachedImageAsDataUrl(originalFrontSrc),
+                    getCachedImageAsDataUrl(originalBackSrc),
+                    getCachedImageAsDataUrl(originalLogoSrc)
+                ]);
+
+                frontBg.src = frontDataUrl;
+                backBg.src = backDataUrl;
+                qrLogo.src = logoDataUrl;
+                
+                // Tunggu DOM diperbarui dengan src baru
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
+                // Opsi html2canvas untuk kualitas tinggi dan ukuran file kecil
+                const canvasOptions = { scale: 3, useCORS: true, allowTaint: false };
+
+                // Tangkap sisi depan
+                const originalTransform = cardFront.style.transform;
+                cardFront.style.transform = 'none';
+                const frontCanvas = await html2canvas(cardFront, canvasOptions);
+                // Gunakan JPEG dengan kualitas 90% untuk kompresi yang baik
+                const frontImgData = frontCanvas.toDataURL('image/jpeg', 0.9);
+                cardFront.style.transform = originalTransform;
+
+                // Tangkap sisi belakang
+                const backCanvas = await html2canvas(cardBack, canvasOptions);
+                // Gunakan JPEG dengan kualitas 90% untuk kompresi yang baik
+                const backImgData = backCanvas.toDataURL('image/jpeg', 0.9);
+
+                const pdf = new jsPDF({
+                    orientation: 'portrait',
+                    unit: 'mm',
+                    format: 'a4'
+                });
+
+                const pageWidth = pdf.internal.pageSize.getWidth();
+                const pageHeight = pdf.internal.pageSize.getHeight();
+
+                // --- Header ---
+                const sekolah = document.getElementById('sekolah').value || 'Nama Sekolah';
+                pdf.setFontSize(14);
+                pdf.setFont('helvetica', 'bold');
+                pdf.text(sekolah.toUpperCase(), pageWidth / 2, 20, { align: 'center' });
+                pdf.setFontSize(10);
+                pdf.setFont('helvetica', 'normal');
+                pdf.text('KARTU NOMOR INDUK SISWA NASIONAL (NISN)', pageWidth / 2, 27, { align: 'center' });
+
+                // --- Kartu ---
+                const cardWidth = 85.6;
+                const cardHeight = 54;
+                const margin = 15;
+                const spacing = 5;
+                const topMargin = 40;
+
+                pdf.addImage(backImgData, 'JPEG', margin, topMargin, cardWidth, cardHeight);
+                pdf.addImage(frontImgData, 'JPEG', margin + cardWidth + spacing, topMargin, cardWidth, cardHeight);
+
+                // --- Footer ---
+                const generationDate = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
+                pdf.setFontSize(8);
+                pdf.setTextColor(150);
+                pdf.text(`Dicetak Pada: ${generationDate} | © Aplikasi Cetak Kartu NISN | Situs Resmi Cek Status NISN : https://nisn.data.kemdikbud.go.id`, pageWidth / 2, pageHeight - 15, { align: 'center' });
+
+                const fileName = `Kartu_NISN_A4_${document.getElementById('nisn').value || 'siswa'}_${document.getElementById('nama').value || 'siswa'}.pdf`;
+                pdf.save(fileName);
+                
+                hideModal();
+
+            } catch (error) {
+                console.error("Gagal saat membuat PDF:", error);
+                // Tampilkan pesan error yang lebih spesifik dari fungsi imageToDataUrl
+                showModal('Error', `Gagal membuat file PDF: ${error.message}`, 'error');
+            } finally {
+                // Kembalikan sumber gambar asli
+                frontBg.src = originalFrontSrc;
+                backBg.src = originalBackSrc;
+                qrLogo.src = originalLogoSrc;
+            }
+        }
+        
+        // Fungsi untuk mengunggah file Excel dengan validasi duplikat NISN
+        function uploadExcel() {
+            const fileInput = document.getElementById('uploadExcelInput');
+            const file = fileInput.files[0];
+            if (!file) {
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const sheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[sheetName];
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
+
+                    if (jsonData.length < 2 || jsonData[0].length < 6) {
+                        showModal('Peringatan', 'Format file Excel tidak valid. Pastikan file memiliki kolom: nama, nisn, sekolah, tempatLahir, tanggalLahir, jenisKelamin.', 'warning');
+                        return;
+                    }
+
+                    const headers = jsonData[0].map(h => String(h).trim());
+                    const nisnHeaderIndex = headers.indexOf('nisn');
+
+                    if (nisnHeaderIndex === -1) {
+                         showModal('Peringatan', 'Kolom "nisn" tidak ditemukan di file Excel. Pastikan header dieja dengan benar (huruf kecil).', 'warning');
+                        return;
+                    }
+
+                    const rows = jsonData.slice(1);
+                    const errors = [];
+                    const validNewStudents = [];
+                    const existingNisns = new Set(studentData.map(s => String(s.nisn)));
+                    const nisnsInFile = new Set();
+
+                    rows.forEach((row, index) => {
+                        const nisn = row[nisnHeaderIndex] ? String(row[nisnHeaderIndex]).trim() : '';
+                        let errorMsg = '';
+
+                        if (!nisn) {
+                            errorMsg = 'NISN tidak boleh kosong.';
+                        } else if (existingNisns.has(nisn)) {
+                            errorMsg = 'NISN sudah ada di data tersimpan.';
+                        } else if (nisnsInFile.has(nisn)) {
+                            errorMsg = 'NISN duplikat di dalam file ini.';
+                        }
+
+                        if (errorMsg) {
+                            errors.push({ rowIndex: index + 1, message: errorMsg });
+                        } else {
+                            nisnsInFile.add(nisn);
+                            const studentObj = headers.reduce((obj, header, i) => {
+                                obj[header] = row[i] ? String(row[i]).trim() : '';
+                                return obj;
+                            }, {});
+
+                            validNewStudents.push({
+                                id: Date.now() + Math.random(),
+                                nama: studentObj.nama || '',
+                                nisn: studentObj.nisn || '',
+                                sekolah: studentObj.sekolah || '',
+                                tempatLahir: studentObj.tempatLahir || '',
+                                tanggalLahir: studentObj.tanggalLahir || '',
+                                jenisKelamin: studentObj.jenisKelamin || '',
+                                fotoData: FOTO_PLACEHOLDER,
+                            });
+                        }
+                    });
+
+                    if (errors.length > 0) {
+                        const generateErrorFile = () => {
+                            const errorReportData = JSON.parse(JSON.stringify(jsonData));
+                            errorReportData[0].push('Kesalahan');
+
+                            const errorMap = new Map(errors.map(err => [err.rowIndex, err.message]));
+                            
+                            for (let i = 1; i < errorReportData.length; i++) {
+                                errorReportData[i].push(errorMap.get(i) || '');
+                            }
+
+                            const errorWorksheet = XLSX.utils.aoa_to_sheet(errorReportData);
+                            const errorWorkbook = XLSX.utils.book_new();
+                            XLSX.utils.book_append_sheet(errorWorkbook, errorWorksheet, "Laporan Kesalahan");
+                            XLSX.writeFile(errorWorkbook, "laporan_kesalahan_import.xlsx");
+                        };
+
+                        showModal(
+                            'Gagal Mengimpor',
+                            `Ditemukan ${errors.length} data dengan NISN duplikat atau tidak valid. Data tidak diimpor. Silakan unduh laporan untuk melihat detail dan memperbaikinya.`,
+                            'error',
+                            { text: 'Cek Laporan Kesalahan', onClick: generateErrorFile }
+                        );
+                    } else {
+                        studentData = studentData.concat(validNewStudents);
+                        localStorage.setItem('studentData', JSON.stringify(studentData));
+                        renderDataTable();
+                        showModal('Unggah Berhasil', `Berhasil mengunggah ${validNewStudents.length} data siswa.`, 'success');
+                    }
+                } catch (err) {
+                     console.error("Error processing Excel file:", err);
+                     showModal('Error', 'Terjadi kesalahan saat memproses file Excel. Pastikan file tidak rusak.', 'error');
+                } finally {
+                    fileInput.value = ''; // Selalu reset input file
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // Fungsi untuk mengunduh template Excel dengan data sampel
+        function downloadExcelTemplate() {
+            // 1. Definisikan header kolom
+            const headers = ["nama", "nisn", "sekolah", "tempatLahir", "tanggalLahir", "jenisKelamin"];
+
+            // 2. Definisikan data sampel
+            const sampleData = [
+                ["Budi Santoso", "1234567890", "SMA Negeri 1", "Jakarta", "15/05/2007", "Laki-laki"],
+                ["Siti Aminah", "0987654321", "SMK Harapan Bangsa", "Bandung", "20/02/2008", "Perempuan"]
+            ];
+
+            // 3. Gabungkan header dan data sampel ke dalam satu array
+            const data = [headers, ...sampleData];
+
+            // 4. Buat worksheet dari array data
+            const worksheet = XLSX.utils.aoa_to_sheet(data);
+
+            // 5. Buat workbook baru dan tambahkan worksheet
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Data Siswa");
+
+            // 6. Unduh file Excel
+            XLSX.writeFile(workbook, "template_data_siswa.xlsx");
+        }
+
+        // Fungsi untuk menampilkan/menyembunyikan tabel data siswa
+        function toggleDataTable() {
+            const isTableVisible = studentDataTableContainer.classList.contains('hidden');
+            if (isTableVisible) {
+                formCardSection.classList.add('hidden');
+                studentDataTableContainer.classList.remove('hidden');
+                renderDataTable(); // Muat ulang data saat tabel ditampilkan
+            } else {
+                studentDataTableContainer.classList.add('hidden');
+                formCardSection.classList.remove('hidden');
+            }
+        }
+
+        // Fungsi untuk scroll ke atas halaman
+        function scrollToTop() {
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        }
+
+        // Fungsi untuk scroll ke bawah halaman
+        function scrollToBottom() {
+            window.scrollTo({
+                top: document.body.scrollHeight,
+                behavior: 'smooth'
+            });
+        }
+
+        // Fungsi untuk mengontrol visibilitas tombol scroll
+        function toggleScrollButtons() {
+            if (window.scrollY > 100) {
+                scrollToTopBtn.classList.add('visible');
+            } else {
+                scrollToTopBtn.classList.remove('visible');
+            }
+
+            if ((window.innerHeight + window.scrollY) < document.body.scrollHeight - 100) {
+                scrollToBottomBtn.classList.add('visible');
+            } else {
+                scrollToBottomBtn.classList.remove('visible');
+            }
+        }
+
+        window.addEventListener('scroll', toggleScrollButtons);
+    </script>
+    <script>
+        (function() {
+            const blockPage = () => {
+                // Replace the entire page content.
+                document.body.innerHTML = `
+                    <div style="position:fixed; top:0; left:0; width:100%; height:100%; background-color: #000; color: #f00; display:flex; justify-content:center; align-items:center; flex-direction:column; font-family:monospace; z-index:999999;">
+                        <h1 style="font-size: 3rem; margin-bottom: 20px;">ACCESS DENIED</h1>
+                        <p style="font-size: 1.2rem;">Developer tools are not permitted on this page.</p>
+                    </div>`;
+            };
+
+            const threshold = 160;
+            
+            const check = () => {
+                const startTime = new Date().getTime();
+                debugger; // This statement pauses execution only if dev tools are open.
+                const endTime = new Date().getTime();
+
+                if (endTime - startTime > threshold) {
+                    blockPage();
+                    // Enter an infinite loop to freeze the tab.
+                    while(true) {
+                        check();
+                    }
+                }
+            };
+            
+            // Check repeatedly in case the user tries to open them later.
+            try {
+                setInterval(check, 1000);
+            } catch (err) {}
+            
+            // Initial check
+            try {
+                check();
+            } catch (err) {}
+
+            // Prevent right-click context menu.
+            document.addEventListener('contextmenu', event => event.preventDefault());
+
+            // Prevent keyboard shortcuts.
+            document.addEventListener('keydown', function(e) {
+                if (
+                    e.key === 'F12' || // F12
+                    (e.ctrlKey && e.shiftKey && e.key.toUpperCase() === 'I') || // Ctrl+Shift+I
+                    (e.ctrlKey && e.shiftKey && e.key.toUpperCase() === 'C') || // Ctrl+Shift+C
+                    (e.ctrlKey && e.shiftKey && e.key.toUpperCase() === 'J') || // Ctrl+Shift+J
+                    (e.ctrlKey && e.key.toUpperCase() === 'U') // Ctrl+U
+                ) {
+                    e.preventDefault();
+                }
+            }, true); // Use capturing phase to catch event early.
+        })();
+    </script>
+</body>
+</html>
